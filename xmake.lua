@@ -1,0 +1,7 @@
+target("lwiptest")
+    set_kind("binary")
+    add_files("lib/lwip/**.c")
+    add_files("src/**.c")
+    add_includedirs("lib/lwip/include")
+    add_includedirs("src")
+    add_syslinks("pthread")
