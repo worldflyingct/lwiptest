@@ -23,6 +23,8 @@
 #define MEM_SIZE 4096
 #define TCP_SND_QUEUELEN 6
 
+#define TCP_WND 786
+
 #define TCP_SNDLOWAT 1002
 #define PBUF_POOL_SIZE 5
 #endif
