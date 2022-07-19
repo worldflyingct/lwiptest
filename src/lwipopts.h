@@ -1,7 +1,7 @@
 #ifndef LWIP_HDR_LWIPOPTS_H
 #define LWIP_HDR_LWIPOPTS_H
 
-//#define LWIP_DEBUG 1
+// #define LWIP_DEBUG 1
 
 #define MEM_ALIGNMENT 4
 

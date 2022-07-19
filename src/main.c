@@ -15,7 +15,7 @@ struct tcp_pcb *tcp_client;
 
 static err_t low_tap_output(struct netif *netif, struct pbuf *p)
 {
-    char buff[1018];
+    char buff[1005];
     int len = 0;
     for (struct pbuf *q = p; q != NULL; q = q->next)
     {
@@ -28,10 +28,10 @@ static err_t low_tap_output(struct netif *netif, struct pbuf *p)
 
 void *low_tap_input()
 {
-    unsigned char buff[1018];
+    unsigned char buff[1005];
     while (1)
     {
-        ssize_t len = read(tapfd, buff, 1018);
+        ssize_t len = read(tapfd, buff, 1005);
         if (len < 0)
         {
             continue;
@@ -51,7 +51,7 @@ void *checktimeout()
 {
     while (1)
     {
-        usleep(10000);
+        usleep(100000);
         sys_check_timeouts();
     }
 }
@@ -62,7 +62,7 @@ static err_t eth_init(struct netif *netif)
     netif->name[1] = 'f';
     netif->output = etharp_output;
     netif->linkoutput = low_tap_output;
-    netif->mtu = 1500;
+    netif->mtu = 1005;
     netif->flags = NETIF_FLAG_BROADCAST | NETIF_FLAG_ETHARP | NETIF_FLAG_IGMP;
     netif->hwaddr[0] = 0x00;
     netif->hwaddr[1] = 0x23;
@@ -96,7 +96,7 @@ static err_t TCPClientCallback(void *arg, struct tcp_pcb *tcp_client, struct pbu
         if (len < 4)
         {
             printf("http data error\n");
-            pbuf_free(tcp_recv_pbuf);
+            // pbuf_free(tcp_recv_pbuf);
             tcp_close(tcp_client);
             return;
         }
@@ -119,7 +119,7 @@ static err_t TCPClientCallback(void *arg, struct tcp_pcb *tcp_client, struct pbu
             if (ishead)
             {
                 printf("http data error\n");
-                pbuf_free(tcp_recv_pbuf);
+                // pbuf_free(tcp_recv_pbuf);
                 tcp_close(tcp_client);
                 return;
             }
@@ -128,7 +128,7 @@ static err_t TCPClientCallback(void *arg, struct tcp_pcb *tcp_client, struct pbu
         write(fd, ota_data, ota_data_len);
         close(fd);
         /* 更新接收窗口 */
-        tcp_recved(tcp_client, tcp_recv_pbuf->tot_len);
+        tcp_recved(tcp_client, len);
         pbuf_free(tcp_recv_pbuf);
     }
     else if (err == ERR_OK)
@@ -147,13 +147,13 @@ static err_t TCPClientCallback(void *arg, struct tcp_pcb *tcp_client, struct pbu
 
 static err_t TCPClientConnected(void *arg, struct tcp_pcb *tcp_client, err_t err)
 {
-    ishead = 1;
-    char clientString[] = "GET /abc.mp4 HTTP/1.1\r\n"
+    printf("in %s, at %d\n", __FILE__, __LINE__);
+    char clientString[] = "GET /852369.mp4 HTTP/1.1\r\n"
                           "Host: 192.168.37.1\r\n"
                           "Connection: keep-alive\r\n\r\n";
     tcp_recv(tcp_client, TCPClientCallback); // 配置接收回调函数
     tcp_write(tcp_client, clientString, strlen(clientString), TCP_WRITE_FLAG_COPY);
-    tcp_output(tcp_client);
+    // tcp_output(tcp_client);
     return ERR_OK;
 }
 
@@ -193,16 +193,17 @@ void main(void)
     pthread_create(&th, &attr, checktimeout, NULL);
     pthread_attr_destroy(&attr);
     sleep(5);
+    unlink("abc.mp4");
     // tcp发送
     tcp_client = tcp_new();
     tcp_client->flags |= TF_NODELAY;
     tcp_bind(tcp_client, IP_ADDR_ANY, 0);
     ip_addr_t remoteip;
-    IP4_ADDR(&remoteip, 192, 168, 56, 1);
+    IP4_ADDR(&remoteip, 192, 168, 37, 1);
     printf("in %s, at %d\n", __FILE__, __LINE__);
     tcp_err(tcp_client, TCPClientConnectError); // 连接错误处理回调
     printf("in %s, at %d\n", __FILE__, __LINE__);
-    int err = tcp_connect(tcp_client, &remoteip, 8080, TCPClientConnected); // 连接完成处理回调
+    int err = tcp_connect(tcp_client, &remoteip, 80, TCPClientConnected); // 连接完成处理回调
     printf("err:%d, in %s, at %d\n", err, __FILE__, __LINE__);
     pause();
 }
