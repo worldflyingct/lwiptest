@@ -1,4 +1,5 @@
 #include <arch/cc.h>
+#include <lwip/sys.h>
 #include <time.h>
 
 u32_t sys_now(void)
