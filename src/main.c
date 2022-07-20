@@ -15,7 +15,7 @@ struct tcp_pcb *tcp_client;
 
 static err_t low_tap_output(struct netif *netif, struct pbuf *p)
 {
-    char buff[1005];
+    char buff[1518];
     int len = 0;
     for (struct pbuf *q = p; q != NULL; q = q->next)
     {
@@ -28,10 +28,10 @@ static err_t low_tap_output(struct netif *netif, struct pbuf *p)
 
 void *low_tap_input()
 {
-    unsigned char buff[1005];
+    unsigned char buff[1518];
     while (1)
     {
-        ssize_t len = read(tapfd, buff, 1005);
+        ssize_t len = read(tapfd, buff, 1518); // 接收底层物理数据
         if (len < 0)
         {
             continue;
@@ -62,7 +62,7 @@ static err_t eth_init(struct netif *netif)
     netif->name[1] = 'f';
     netif->output = etharp_output;
     netif->linkoutput = low_tap_output;
-    netif->mtu = 1005;
+    netif->mtu = 1500;
     netif->flags = NETIF_FLAG_BROADCAST | NETIF_FLAG_ETHARP | NETIF_FLAG_IGMP;
     netif->hwaddr[0] = 0x00;
     netif->hwaddr[1] = 0x23;
@@ -84,8 +84,7 @@ static err_t TCPClientCallback(void *arg, struct tcp_pcb *tcp_client, struct pbu
 
     if (tcp_recv_pbuf != NULL)
     {
-
-        char buff[1018];
+        char buff[1024];
         int len = 0;
         for (struct pbuf *q = tcp_recv_pbuf; q != NULL; q = q->next)
         {
@@ -96,7 +95,6 @@ static err_t TCPClientCallback(void *arg, struct tcp_pcb *tcp_client, struct pbu
         if (len < 4)
         {
             printf("http data error\n");
-            // pbuf_free(tcp_recv_pbuf);
             tcp_close(tcp_client);
             return;
         }
@@ -119,7 +117,6 @@ static err_t TCPClientCallback(void *arg, struct tcp_pcb *tcp_client, struct pbu
             if (ishead)
             {
                 printf("http data error\n");
-                // pbuf_free(tcp_recv_pbuf);
                 tcp_close(tcp_client);
                 return;
             }
