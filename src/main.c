@@ -153,7 +153,7 @@ static err_t TCPClientConnected(void *arg, struct tcp_pcb *tcp_client, err_t err
                           "Connection: keep-alive\r\n\r\n";
     tcp_recv(tcp_client, TCPClientCallback); // 配置接收回调函数
     tcp_write(tcp_client, clientString, strlen(clientString), TCP_WRITE_FLAG_COPY);
-    // tcp_output(tcp_client);
+    tcp_output(tcp_client);
     return ERR_OK;
 }
 
