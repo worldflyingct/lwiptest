@@ -43,6 +43,7 @@
 
 #if LWIP_SOCKET
 
+#include <errno.h>
 #include "lwip/errno.h"
 #include "lwip/if_api.h"
 #include "lwip/netifapi.h"

@@ -141,7 +141,7 @@ tcpip_thread(void *arg)
     /* wait for a message, timeouts are processed while waiting */
     TCPIP_MBOX_FETCH(&tcpip_mbox, (void **)&msg);
     if (msg == NULL) {
-      LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: invalid message: NULL\n"));
+      printf("tcpip_thread: invalid message: NULL\n");
       LWIP_ASSERT("tcpip_thread: invalid message", 0);
       continue;
     }
@@ -203,7 +203,7 @@ tcpip_thread_handle_msg(struct tcpip_msg *msg)
       break;
 
     default:
-      LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_thread: invalid message: %d\n", msg->type));
+      printf("tcpip_thread: invalid message: %d\n", msg->type);
       LWIP_ASSERT("tcpip_thread: invalid message", 0);
       break;
   }

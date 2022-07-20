@@ -2,7 +2,8 @@
 #include "lwip/dns.h"
 #include "lwip/init.h"
 #include "lwip/netif.h"
-#include "lwip/tcp.h"
+#include "lwip/tcpip.h"
+#include "lwip/sockets.h"
 #include "netif/etharp.h"
 #include "sys/types.h"
 #include "tapdriver.h"
@@ -11,7 +12,6 @@
 
 int tapfd;
 struct netif netif;
-struct tcp_pcb *tcp_client;
 
 static err_t low_tap_output(struct netif *netif, struct pbuf *p)
 {
@@ -34,26 +34,20 @@ void *low_tap_input()
         ssize_t len = read(tapfd, buff, 1518); // 接收底层物理数据
         if (len < 0)
         {
+            printf("in %s, at %d\n", __FILE__, __LINE__);
             continue;
         }
         struct pbuf *p = pbuf_alloc(PBUF_RAW, len, PBUF_POOL);
         if (p == NULL)
         {
+            printf("in %s, at %d\n", __FILE__, __LINE__);
             continue;
         }
         pbuf_take(p, buff, len);
+        printf("in %s, at %d\n", __FILE__, __LINE__);
         netif.input(p, &netif); // p在netif_input内已经释放了，无需再调用pbuf_free(p)
     }
     return NULL;
-}
-
-void *checktimeout()
-{
-    while (1)
-    {
-        usleep(100000);
-        sys_check_timeouts();
-    }
 }
 
 static err_t eth_init(struct netif *netif)
@@ -75,28 +69,55 @@ static err_t eth_init(struct netif *netif)
     return ERR_OK;
 }
 
-char ishead = 1;
-/* TCP客户端接收到数据后的数据处理回调函数 */
-static err_t TCPClientCallback(void *arg, struct tcp_pcb *tcp_client, struct pbuf *tcp_recv_pbuf, err_t err)
+void main(void)
 {
-    struct pbuf *tcp_send_pbuf;
-    char echoString[] = "This is the server content echo:";
+    tapfd = tap_alloc();
+    printf("tapfd:%d, in %s, at %d\n", tapfd, __FILE__, __LINE__);
+    pthread_t th;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    pthread_create(&th, &attr, low_tap_input, NULL);
+    pthread_attr_destroy(&attr);
+/*
+    ip4_addr_t addr;
+    ip4_addr_t netmask;
+    ip4_addr_t gw;
+    IP4_ADDR(&addr, 192, 168, 37, 84);
+    IP4_ADDR(&netmask, 255, 255, 255, 0);
+    IP4_ADDR(&gw, 192, 168, 37, 1);
+    tcpip_init(NULL, NULL);
+    netif_add(&netif, &addr, &netmask, &gw, &netif, eth_init, tcpip_input);
+    netif_set_default(&netif);
+    netif_set_up(&netif);
+    netif_set_link_up(&netif);
+    ip4_addr_t dns;
+    IP4_ADDR(&dns, 114, 114, 114, 114);
+    dns_setserver(0, &dns);
 
-    if (tcp_recv_pbuf != NULL)
-    {
-        char buff[1024];
-        int len = 0;
-        for (struct pbuf *q = tcp_recv_pbuf; q != NULL; q = q->next)
-        {
-            memcpy(buff + len, q->payload, q->len);
-            len += q->len;
-        }
-        printf("len:%d, in %s, at %d\n", len, __FILE__, __LINE__);
-        if (len < 4)
-        {
-            printf("http data error\n");
-            tcp_close(tcp_client);
-            return;
+    sleep(5);
+    unlink("abc.mp4");
+    // tcp发送
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in clientAddr;
+    memset(&clientAddr, 0, sizeof(clientAddr));
+    clientAddr.sin_family = AF_INET;
+    clientAddr.sin_port = htons(80);
+    clientAddr.sin_addr.s_addr = inet_addr("192.168.37.1");
+    if(connect(fd, (struct sockaddr*)&clientAddr, sizeof(clientAddr)) < 0) {
+        printf("connect error");
+        return 1;
+    }
+    char clientString[] = "GET /852369.mp4 HTTP/1.1\r\n"
+                          "Host: 192.168.37.1\r\n"
+                          "Connection: keep-alive\r\n\r\n";
+    send(fd, clientString, strlen(clientString), 0);
+    char buff[1024];
+    char ishead = 1;
+    while (1) {
+        ssize_t len = recv(fd, buff, 1024, 0);
+        if (len < 0) {
+            break;
         }
         char *ota_data = buff;
         int ota_data_len = len;
@@ -117,90 +138,14 @@ static err_t TCPClientCallback(void *arg, struct tcp_pcb *tcp_client, struct pbu
             if (ishead)
             {
                 printf("http data error\n");
-                tcp_close(tcp_client);
-                return;
+                break;
             }
         }
-        int fd = open("abc.mp4", O_WRONLY | O_CREAT | O_APPEND, 0777);
-        write(fd, ota_data, ota_data_len);
-        close(fd);
-        /* 更新接收窗口 */
-        tcp_recved(tcp_client, len);
-        pbuf_free(tcp_recv_pbuf);
+        int fd2 = open("abc.mp4", O_WRONLY | O_CREAT | O_APPEND, 0777);
+        write(fd2, ota_data, ota_data_len);
+        close(fd2);
     }
-    else if (err == ERR_OK)
-    {
-        printf("in %s, at %d\n", __FILE__, __LINE__);
-        tcp_close(tcp_client);
-        return ERR_OK;
-    }
-    else
-    {
-        printf("err:%d, in %s, at %d\n", err, __FILE__, __LINE__);
-    }
-
-    return ERR_OK;
-}
-
-static err_t TCPClientConnected(void *arg, struct tcp_pcb *tcp_client, err_t err)
-{
-    printf("in %s, at %d\n", __FILE__, __LINE__);
-    char clientString[] = "GET /852369.mp4 HTTP/1.1\r\n"
-                          "Host: 192.168.37.1\r\n"
-                          "Connection: keep-alive\r\n\r\n";
-    tcp_recv(tcp_client, TCPClientCallback); // 配置接收回调函数
-    tcp_write(tcp_client, clientString, strlen(clientString), TCP_WRITE_FLAG_COPY);
-    tcp_output(tcp_client);
-    return ERR_OK;
-}
-
-/* TCP客户端连接服务器错误回调函数 */
-static void TCPClientConnectError(void *arg, err_t err)
-{
-    printf("connect error: %d\n", err);
-}
-
-void main(void)
-{
-    tapfd = tap_alloc();
-    pthread_t th;
-    pthread_attr_t attr;
-    pthread_attr_init(&attr);
-    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-    pthread_create(&th, &attr, low_tap_input, NULL);
-    pthread_attr_destroy(&attr);
-
-    ip4_addr_t addr;
-    ip4_addr_t netmask;
-    ip4_addr_t gw;
-    IP4_ADDR(&addr, 192, 168, 37, 84);
-    IP4_ADDR(&netmask, 255, 255, 255, 0);
-    IP4_ADDR(&gw, 192, 168, 37, 1);
-    lwip_init();
-    netif_add(&netif, &addr, &netmask, &gw, &netif, eth_init, netif_input);
-    netif_set_default(&netif);
-    netif_set_up(&netif);
-    netif_set_link_up(&netif);
-    ip4_addr_t dns;
-    IP4_ADDR(&dns, 114, 114, 114, 114);
-    dns_setserver(0, &dns);
-
-    pthread_attr_init(&attr);
-    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-    pthread_create(&th, &attr, checktimeout, NULL);
-    pthread_attr_destroy(&attr);
-    sleep(5);
-    unlink("abc.mp4");
-    // tcp发送
-    tcp_client = tcp_new();
-    tcp_client->flags |= TF_NODELAY;
-    tcp_bind(tcp_client, IP_ADDR_ANY, 0);
-    ip_addr_t remoteip;
-    IP4_ADDR(&remoteip, 192, 168, 37, 1);
-    printf("in %s, at %d\n", __FILE__, __LINE__);
-    tcp_err(tcp_client, TCPClientConnectError); // 连接错误处理回调
-    printf("in %s, at %d\n", __FILE__, __LINE__);
-    int err = tcp_connect(tcp_client, &remoteip, 80, TCPClientConnected); // 连接完成处理回调
-    printf("err:%d, in %s, at %d\n", err, __FILE__, __LINE__);
+    close(fd);
+    */
     pause();
 }
